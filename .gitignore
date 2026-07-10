@@ -1,0 +1,6 @@
+build/
+mini-agent
+*.o
+*.dSYM/
+src/test
+src/tui

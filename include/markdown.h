@@ -3,7 +3,14 @@
 
 #include <ncurses.h>
 
-int markdown_count_wrapped_lines(const char *text, int width);
-int markdown_draw_wrapped(WINDOW *win, int start_y, int max_y, const char *text, int width);
+int markdown_count_lines(const char *text, int width);
+
+int markdown_draw(
+    WINDOW *window,
+    const char *text,
+    int start_y,
+    int width,
+    int max_y
+);
 
 #endif

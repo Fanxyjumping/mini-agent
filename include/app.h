@@ -20,14 +20,16 @@ typedef struct {
 typedef struct {
     Message messages[MAX_MESSAGES];
     size_t message_count;
+
     char input[INPUT_CAPACITY];
     size_t input_length;
+
     int running;
 } App;
 
 void app_init(App *app);
 void app_destroy(App *app);
-void app_submit_input(App *app);
 void app_add_message(App *app, MessageRole role, const char *text);
+void app_submit_input(App *app);
 
-#endif 
+#endif

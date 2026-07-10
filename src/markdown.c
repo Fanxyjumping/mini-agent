@@ -6,132 +6,142 @@
 #define PAIR_CODE 4
 
 // 计算文本在给定宽度下的可见宽度
-static int visible_width(const char *text) {
-    int width = 0;
+int markdown_count_lines(const char *text, int width)
+{
+    int lines = 1;
+    int x = 0;
     size_t i = 0;
     int bold = 0;
     int code = 0;
 
-    while (text[i] != '\0' && text[i] != '\n') {
-        if (!code && ((text[i] == '*' && text[i + 1] == '*') || (text[i] == '_' && text[i + 1] == '_'))) {
-            bold = !bold;
-            (void)bold;
-            i += 2;
-        } else if (text[i] == '`') {
-            code = !code;
-            i++;
-        } else {
-            width++;
-            i++;
-        }
-    }
-    return width;
-}
-
-// 计算文本在给定宽度下的换行行数
-int markdown_count_wrapped_lines(const char *text, int width) {
-    int lines = 0;
-    const char *line_start = text;
-    const char *cursor = text;
-
-    if (width <= 0 || text == NULL || *text == '\0') {
+    if (text == NULL || width <= 0) {
         return 1;
     }
 
-    while (1) {
-        if (*cursor == '\n' || *cursor == '\0') {
-            int len = (int)(cursor - line_start);
-            char buffer[2048];
-            int displayed;
+    while (text[i] != '\0') {
+        int marker_length = 0;
 
-            if (len >= (int)sizeof(buffer)) {
-                len = (int)sizeof(buffer) - 1;
-            }
-            memcpy(buffer, line_start, (size_t)len);
-            buffer[len] = '\0';
-            displayed = visible_width(buffer);
-            lines += displayed == 0 ? 1 : (displayed + width - 1) / width;
-            
-            if (*cursor == '\0') {
-                break;
-            }
-            line_start = cursor + 1;
+        if (!code &&
+            ((text[i] == '*' && text[i + 1] == '*') ||
+             (text[i] == '_' && text[i + 1] == '_'))) {
+            bold = !bold;
+            marker_length = 2;
+        } else if (text[i] == '`') {
+            code = !code;
+            marker_length = 1;
         }
-        cursor++;
+
+        if (marker_length > 0) {
+            i += (size_t)marker_length;
+            continue;
+        }
+
+        if (text[i] == '\n') {
+            lines++;
+            x = 0;
+            i++;
+            continue;
+        }
+
+        x++;
+
+        if (x >= width) {
+            lines++;
+            x = 0;
+        }
+
+        i++;
     }
+
+    (void)bold;
     return lines;
 }
 
-// 绘制文本，自动换行
-static void set_style(WINDOW *win, int title, int bold, int code) {
-    wattrset(win, A_NORMAL);
-    if (title) {
-        wattron(win, COLOR_PAIR(PAIR_TITLE) | A_BOLD);
-    } else if (code) {
-        wattron(win, COLOR_PAIR(PAIR_CODE));
-    } else if (bold) {
-        wattron(win, COLOR_PAIR(PAIR_BOLD) | A_BOLD);
-    }
-}
-
-// 
-int markdown_draw_wrapped(WINDOW *win, int start_y, int max_y, const char *text, int width)
+int markdown_draw(
+    WINDOW *window,
+    const char *text,
+    int start_y,
+    int width,
+    int max_y
+)
 {
     int y = start_y;
     int x = 0;
     size_t i = 0;
     int bold = 0;
     int code = 0;
-    int line_start = 1;
-    int title = 0;
+    int title_line = 0;
 
-    if (width <= 0) {
+    if (window == NULL || text == NULL || width <= 0) {
         return y;
     }
 
     while (text[i] != '\0' && y < max_y) {
-        if (line_start) {
-            title = (text[i] == '#' && (text[i + 1] == ' ' || (text[i + 1] == '#' && text[i + 2] == ' ')) );
-            line_start = 0;
-            set_style(win, title, bold, code);
+        if (x == 0) {
+            title_line =
+                text[i] == '#' &&
+                (text[i + 1] == ' ' ||
+                 (text[i + 1] == '#' &&
+                  text[i + 2] == ' '));
         }
 
-        if (text[i] == '\n') {
-            y++;
-            x = 0;
-            i++;
-            line_start = 1;
-            title = 0;
-            continue;
-        }
-
-        if (!code && ((text[i] == '*' && text[i + 1] == '*') || (text[i] == '_' && text[i + 1] == '_'))) {
+        if (!code &&
+            ((text[i] == '*' && text[i + 1] == '*') ||
+             (text[i] == '_' && text[i + 1] == '_'))) {
             bold = !bold;
             i += 2;
-            set_style(win, title, bold, code);
             continue;
         }
 
         if (text[i] == '`') {
             code = !code;
             i++;
-            set_style(win, title, bold, code);
+            continue;
+        }
+
+        if (text[i] == '\n') {
+            y++;
+            x = 0;
+            title_line = 0;
+            i++;
             continue;
         }
 
         if (x >= width) {
             y++;
             x = 0;
+            title_line = 0;
+
             if (y >= max_y) {
                 break;
             }
         }
 
-        mvwaddch(win, y, x, (unsigned char)text[i]);
+        if (title_line) {
+            wattron(window, COLOR_PAIR(PAIR_TITLE) | A_BOLD);
+        } else if (code) {
+            wattron(window, COLOR_PAIR(PAIR_CODE));
+        } else if (bold) {
+            wattron(window, COLOR_PAIR(PAIR_BOLD) | A_BOLD);
+        }
+
+        mvwaddch(window, y, x, (unsigned char)text[i]);
+
+        if (title_line) {
+            wattroff(window, COLOR_PAIR(PAIR_TITLE) | A_BOLD);
+        } else if (code) {
+            wattroff(window, COLOR_PAIR(PAIR_CODE));
+        } else if (bold) {
+            wattroff(window, COLOR_PAIR(PAIR_BOLD) | A_BOLD);
+        }
+
         x++;
         i++;
     }
 
-    wattrset(win, A_NORMAL);
-    return y + 1;
+    if (x > 0 && y < max_y) {
+        y++;
+    }
+
+    return y;
 }

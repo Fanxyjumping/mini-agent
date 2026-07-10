@@ -1,48 +1,63 @@
 #include "app.h"
+#include "command.h"
+
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h>
 
-// 复制字符串
-static char *duplicate_string(const char *source) {
+static char *duplicate_string(const char *text)
+{
     size_t length;
     char *copy;
 
-    if (source == NULL) {
+    if (text == NULL) {
         return NULL;
     }
 
-    length = strlen(source);
+    length = strlen(text);
     copy = malloc(length + 1);
+
     if (copy == NULL) {
-        memcpy(copy, source, length + 1);
+        return NULL;
     }
 
+    memcpy(copy, text, length + 1);
     return copy;
 }
 
-// 发送消息到消息队列
-void app_init(App *app) {
+void app_init(App *app)
+{
+    if (app == NULL) {
+        return;
+    }
+
     memset(app, 0, sizeof(*app));
     app->running = 1;
-    app_add_message(app, ROLE_SYSTEM, "# Welcome to the mini-agent! Type your message and press Enter to send. Use /exit to quit.");
 }
 
-// 销毁消息队列
-void app_destroy(App *app) {
+void app_destroy(App *app)
+{
     size_t i;
+
+    if (app == NULL) {
+        return;
+    }
 
     for (i = 0; i < app->message_count; ++i) {
         free(app->messages[i].text);
         app->messages[i].text = NULL;
     }
+
     app->message_count = 0;
 }
 
-// 添加消息到消息队列
-void app_add_message(App *app, MessageRole role, const char *text) {
-    char *copy;
+void app_add_message(App *app, MessageRole role, const char *text)
+{
     size_t i;
+    char *copy;
+
+    if (app == NULL || text == NULL) {
+        return;
+    }
 
     copy = duplicate_string(text);
     if (copy == NULL) {
@@ -51,9 +66,11 @@ void app_add_message(App *app, MessageRole role, const char *text) {
 
     if (app->message_count == MAX_MESSAGES) {
         free(app->messages[0].text);
-        for (i = 1; i < app->message_count; ++i) {
+
+        for (i = 1; i < MAX_MESSAGES; ++i) {
             app->messages[i - 1] = app->messages[i];
         }
+
         app->message_count--;
     }
 
@@ -62,9 +79,9 @@ void app_add_message(App *app, MessageRole role, const char *text) {
     app->message_count++;
 }
 
-// 提交用户输入
-void app_submit_input(App *app) {
-    if (app->input_length == 0) {
+void app_submit_input(App *app)
+{
+    if (app == NULL || app->input_length == 0) {
         return;
     }
 
@@ -73,9 +90,14 @@ void app_submit_input(App *app) {
     if (strcmp(app->input, "/exit") == 0) {
         app->running = 0;
     } else if (app->input[0] == '/') {
-        app_add_message(app, ROLE_SYSTEM, "Unknown command.");
+        command_handle(app, app->input);
     } else {
-        app_add_message(app, ROLE_ASSISTANT, "## `429` Too many Requests\n\n**Server busy, please try again later.**");
+        app_add_message(
+            app,
+            ROLE_ASSISTANT,
+            "## `429` Too many Requests\n\n"
+            "**Server busy, please try again later.**"
+        );
     }
 
     app->input[0] = '\0';
